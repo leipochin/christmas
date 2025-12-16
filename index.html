@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <!-- 移除 base target，GitHub Pages 不需要 -->
+  <base target="_top">
   <!-- 引入聖誕風格字體 -->
   <link href="https://fonts.googleapis.com/css2?family=Mountains+of+Christmas:wght@700&family=Varela+Round&display=swap" rel="stylesheet">
   <!-- 引入 QR Code 生成庫 -->
@@ -128,14 +128,14 @@
       min-height: 90px;
       align-items: center;
       
-      /* 自訂捲軸樣式 */
+      /* 自訂捲軸樣式 (讓使用者知道可以滑) */
       scrollbar-width: thin;
       scrollbar-color: var(--xmas-gold) rgba(0,0,0,0.3);
     }
     
     /* Webkit (Chrome/Safari) 捲軸樣式 */
     .sticker-bar::-webkit-scrollbar {
-      height: 8px; 
+      height: 8px; /* 橫向捲軸高度 */
     }
     .sticker-bar::-webkit-scrollbar-track {
       background: rgba(0,0,0,0.1);
@@ -153,6 +153,8 @@
       cursor: pointer;
       transition: transform 0.2s;
       filter: drop-shadow(0 4px 4px rgba(0,0,0,0.3));
+      
+      /* 防止素材被擠壓，確保可以橫向排列 */
       flex-shrink: 0; 
     }
     .sticker-item:active { transform: scale(0.9); }
@@ -233,6 +235,7 @@
       border-radius: 15px;
       border: 5px solid var(--xmas-gold);
       margin: 20px 0;
+      /* 確保容器大小適中 */
       display: inline-block;
     }
 
@@ -311,7 +314,9 @@
     
     <!-- 素材選單 -->
     <div id="sticker-container" class="sticker-bar hidden">
-      <!-- 素材將由 JS 載入 -->
+      <div style="color:white; width:100%; text-align:center;">
+        🎁 正在打開聖誕禮物袋...
+      </div>
     </div>
 
     <!-- 按鈕區 -->
@@ -330,50 +335,34 @@
       <button id="btn-retake" class="btn-action hidden" onclick="resetCamera()">
         🔄 重拍
       </button>
-      <button id="btn-upload" class="btn-snap hidden" onclick="savePhoto()">
-        💾 儲存
+      <button id="btn-upload" class="btn-snap hidden" onclick="uploadPhoto()">
+        ☁️ 上傳
       </button>
     </div>
   </div>
   
   <div class="deco-line"></div>
 
-  <!-- 遮罩層：處理中 -->
+  <!-- 遮罩層：載入中 -->
   <div id="loading" class="overlay-layer hidden">
-    <h2 style="font-size: 2rem; margin-bottom: 20px;">🦌 正在包裝禮物...</h2>
+    <h2 style="font-size: 2rem; margin-bottom: 20px;">🦌 馴鹿快遞運送中...</h2>
     <div style="font-size: 4rem;">🛷</div>
   </div>
 
-  <!-- 遮罩層：結果與下載 -->
+  <!-- 遮罩層：QR Code 結果 -->
   <div id="qrcode-container" class="overlay-layer hidden">
-    <h2 style="font-size: 2.5rem; color: var(--xmas-gold);">✨ 儲存完成！ ✨</h2>
-    
-    <!-- 預覽縮圖 (取代 QR Code 位置) -->
-    <div style="background:white; padding:10px; border-radius:15px; border:5px solid var(--xmas-gold); margin: 20px 0; max-height: 40vh;">
-      <img id="result-preview" style="max-height: 100%; max-width: 250px; display: block;" />
-    </div>
-
-    <!-- 下載按鈕 -->
-    <a id="download-btn" href="#" download="xmas_photo.jpg" style="text-decoration: none;">
-      <button class="btn-snap" style="font-size: 1.5rem; padding: 10px 30px;">
-        📥 下載到裝置
-      </button>
-    </a>
-
-    <!-- 分享 App 的 QR Code -->
-    <div style="margin-top: 20px; font-size: 0.9rem; color: #ccc;">
-      <div id="qrcode" style="padding: 5px; border-width: 2px;"></div>
-      <p style="margin-top:5px">掃描分享此程式</p>
-    </div>
-
-    <button class="btn-action" onclick="resetApp()" style="margin-top: 15px;">
+    <h2 style="font-size: 2.5rem; color: var(--xmas-gold);">✨ 完成囉！ ✨</h2>
+    <div id="qrcode"></div>
+    <p style="font-size: 1.2rem; margin-top: 10px;">掃描帶走你的聖誕回憶</p>
+    <button class="btn-snap" onclick="resetApp()" style="margin-top: 30px;">
       再玩一次 🎁
     </button>
   </div>
 
   <!-- 遮罩層：照片牆 -->
   <div id="gallery-view" class="gallery-view hidden">
-    <h2 style="font-size: 2.5rem; color: white; margin-bottom: 20px; font-family: 'Mountains of Christmas';">🌟 我的聖誕回憶 🌟</h2>
+    <h2 style="font-size: 2.5rem; color: white; margin-bottom: 20px; font-family: 'Mountains of Christmas';">🌟 大家的聖誕回憶 🌟</h2>
+    <div id="gallery-loading" style="color:white;">載入中...</div>
     <div id="gallery-grid" class="gallery-grid">
       <!-- 照片動態插入 -->
     </div>
@@ -383,40 +372,45 @@
   </div>
 
   <script>
-    // --- 靜態資源設定 (GitHub Pages 適用) ---
-    // 內建 SVG 素材，取代雲端硬碟讀取
-    const ASSETS = {
-      stickers: [
-        "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiB3aWR0aD0iNjQiIGhlaWdodD0iNjQiPjxwYXRoIGZpbGw9IiNlNzRjM2MiIGQ9Ik0yNTYgMzJMMzIgNDE2aDQ0OEwyNTYgMzJ6Ii8+PHBhdGggZmlsbD0iIzJjM2UzMCIgZD0iTTI1NiAzdjEwN2wtNjggMTE4IDY4IDExOHY2N2w4Ni0xNTBoLTQ4bDc2LTEzM2gtNjR6IiBvcGFjaXR5PSIuMiIvPjwvc3ZnPg==", // 聖誕帽
-        "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMiI+PHBhdGggZD0iTTEyIDJ2MjBtLTEwLTEwaDIwbS0zLjUgMy41bC0xMy0xM20wIDEzbDEzLTEzIiBzdHJva2U9IiM4N2NlZWIiLz48L3N2Zz4=", // 雪花
-        "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiB3aWR0aD0iNjQiIGhlaWdodD0iNjQiPjxwYXRoIGZpbGw9IiNmOGIyMjkiIGQ9Ik0yNTYgMzhMMzIgNDE2aDQ0OEwyNTYgMzh6IiBvcGFjaXR5PSIwLjUiLz48L3N2Zz4=", // 金色三角
-        "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMiI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9“MTgiIGhlaWdodD0iMTgiIHJ4PSIyIiByeT0iMiIvPjwvc3ZnPg==",
-        "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmFmY2MiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMjAuODQgNC42MWE1LjUgNS41IDAgMCAwLTcuNzggMGwtLjA2LjA2LS4wNi0uMDZhNS41IDUuNSAwIDAgMC03Ljc4IDcuNzhsNy44NCA3Ljg0IDcuODQtNy44NGE1LjUgNS41IDAgMCAwIDAtNy43OHoiPjwvcGF0aD48L3N2Zz4=" // 愛心
-      ]
-    };
-
-    // --- 本地儲存服務 (取代 Google Drive) ---
-    const LocalGallery = {
-      KEY: 'xmas_booth_photos',
-      save: function(base64) {
-        let photos = this.getAll();
-        // 加入新照片到開頭
-        photos.unshift(base64);
-        // 限制儲存數量 (最多 12 張，避免 LocalStorage 爆滿)
-        if (photos.length > 12) photos = photos.slice(0, 12);
-        try {
-          localStorage.setItem(this.KEY, JSON.stringify(photos));
-          return true;
-        } catch (e) {
-          alert("儲存空間已滿，請清除瀏覽器資料");
-          return false;
+    // --- MOCK 機制 (測試用，正式部署時會使用 Drive 資料) ---
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      console.warn("⚠️ 預覽模式：使用聖誕 Mock 資料");
+      window.google = {
+        script: {
+          run: {
+            successHandler: null,
+            failureHandler: null,
+            withSuccessHandler: function(fn) { this.successHandler = fn; return this; },
+            withFailureHandler: function(fn) { this.failureHandler = fn; return this; },
+            getIconsFromDrive: function() {
+              setTimeout(() => {
+                // 聖誕 SVG 素材
+                const mockIcons = [
+                  { base64: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiB3aWR0aD0iNjQiIGhlaWdodD0iNjQiPjxwYXRoIGZpbGw9IiNlNzRjM2MiIGQ9Ik0yNTYgMzJMMzIgNDE2aDQ0OEwyNTYgMzJ6Ii8+PHBhdGggZmlsbD0iIzJjM2UzMCIgZD0iTTI1NiAzdjEwN2wtNjggMTE4IDY4IDExOHY2N2w4Ni0xNTBoLTQ4bDc2LTEzM2gtNjR6IiBvcGFjaXR5PSIuMiIvPjwvc3ZnPg==" }, // 簡單聖誕帽/樹示意
+                  { base64: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMiI+PHBhdGggZD0iTTEyIDJ2MjBtLTEwLTEwaDIwbS0zLjUgMy41bC0xMy0xM20wIDEzbDEzLTEzIiBzdHJva2U9IiM4N2NlZWIiLz48L3N2Zz4=" }, // 雪花
+                  { base64: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiB3aWR0aD0iNjQiIGhlaWdodD0iNjQiPjxwYXRoIGZpbGw9IiNmOGIyMjkiIGQ9Ik0yNTYgMzhMMzIgNDE2aDQ0OEwyNTYgMzh6IiBvcGFjaXR5PSIwLjUiLz48L3N2Zz4=" },
+                  { base64: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMiI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9“MTgiIGhlaWdodD0iMTgiIHJ4PSIyIiByeT0iMiIvPjwvc3ZnPg==" },
+                  { base64: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmFmY2MiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMjAuODQgNC42MWE1LjUgNS41IDAgMCAwLTcuNzggMGwtLjA2LjA2LS4wNi0uMDZhNS41IDUuNSAwIDAgMC03Ljc4IDcuNzhsNy44NCA3Ljg0IDcuODQtNy44NGE1LjUgNS41IDAgMCAwIDAtNy43OHoiPjwvcGF0aD48L3N2Zz4=" },
+                ];
+                if(this.successHandler) this.successHandler(mockIcons);
+              }, 500);
+            },
+            uploadImageToDrive: function(data) {
+              setTimeout(() => {
+                if(this.successHandler) this.successHandler({ success: true, url: "#", viewUrl: "#" });
+              }, 1500);
+            },
+            getRecentPhotos: function() {
+              setTimeout(() => {
+                // 模擬照片
+                const photos = Array(8).fill("https://via.placeholder.com/300x400/165b33/ffffff?text=Xmas+Photo");
+                if(this.successHandler) this.successHandler(photos);
+              }, 1000);
+            }
+          }
         }
-      },
-      getAll: function() {
-        const data = localStorage.getItem(this.KEY);
-        return data ? JSON.parse(data) : [];
-      }
-    };
+      };
+    }
 
     // --- 全域變數 ---
     const video = document.getElementById('video');
@@ -433,15 +427,6 @@
       createSnow();
       initCamera();
       loadStickers();
-      
-      // 生成分享連結 QR Code
-      new QRCode(document.getElementById("qrcode"), {
-        text: window.location.href,
-        width: 80,
-        height: 80,
-        colorDark : "#165b33",
-        colorLight : "#ffffff"
-      });
     };
 
     // --- 飄雪特效 ---
@@ -509,14 +494,20 @@
       video.onloadedmetadata = () => video.play();
     }
 
-    // --- 素材載入 (改為讀取靜態 SVG) ---
+    // --- 素材載入 ---
     function loadStickers() {
+      google.script.run.withSuccessHandler(showStickers).getIconsFromDrive();
+    }
+    function showStickers(iconList) {
       const container = document.getElementById('sticker-container');
-      container.innerHTML = "";
-      
-      ASSETS.stickers.forEach(base64 => {
+      container.innerHTML = ""; // 清除 loading 字樣
+      if(!iconList || iconList.length === 0) {
+        container.innerHTML = "<div style='color:white; padding:10px;'>🎅 袋子空空的...</div>";
+        return;
+      }
+      iconList.forEach(icon => {
         const img = document.createElement('img');
-        img.src = base64;
+        img.src = icon.base64;
         img.className = 'sticker-item';
         img.onclick = () => addStickerToCanvas(img);
         container.appendChild(img);
@@ -549,8 +540,11 @@
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       
-      // 直接繪製原始影像 (不鏡像)
+      // 修改：移除鏡像翻轉，直接繪製原始影像
+      // ctx.translate(canvas.width, 0); 
+      // ctx.scale(-1, 1);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // ctx.setTransform(1, 0, 0, 1, 0, 0); 
       
       capturedImage = new Image();
       capturedImage.src = canvas.toDataURL('image/png');
@@ -710,69 +704,69 @@
       isResizing = false;
     }
 
-    // --- 儲存 (改為本機儲存與下載) ---
-    function savePhoto() {
+    // --- 上傳 (壓縮與最佳化) ---
+    function uploadPhoto() {
       // 取消選取框
       selectedStickerIndex = -1;
       drawCanvas();
       
       document.getElementById('loading').classList.remove('hidden');
 
-      // 模擬處理時間
-      setTimeout(() => {
-        // 縮放與壓縮
-        const MAX = 1000;
-        let w = canvas.width, h = canvas.height;
-        if (w > h) { if(w > MAX) { h *= MAX/w; w = MAX; } }
-        else { if(h > MAX) { w *= MAX/h; h = MAX; } }
+      // 縮放與壓縮
+      const MAX = 1000;
+      let w = canvas.width, h = canvas.height;
+      if (w > h) { if(w > MAX) { h *= MAX/w; w = MAX; } }
+      else { if(h > MAX) { w *= MAX/h; h = MAX; } }
 
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = w;
-        tempCanvas.height = h;
-        tempCanvas.getContext('2d').drawImage(canvas, 0, 0, w, h);
-        
-        const jpgBase64 = tempCanvas.toDataURL('image/jpeg', 0.8);
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = w;
+      tempCanvas.height = h;
+      tempCanvas.getContext('2d').drawImage(canvas, 0, 0, w, h);
+      
+      const jpgBase64 = tempCanvas.toDataURL('image/jpeg', 0.8);
 
-        // 1. 存入 LocalStorage
-        LocalGallery.save(jpgBase64);
-
-        // 2. 顯示結果頁與下載按鈕
-        document.getElementById('loading').classList.add('hidden');
-        document.getElementById('qrcode-container').classList.remove('hidden');
-        
-        // 設定預覽圖與下載連結
-        document.getElementById('result-preview').src = jpgBase64;
-        const dlBtn = document.getElementById('download-btn');
-        dlBtn.href = jpgBase64;
-        // 檔名加上時間戳
-        dlBtn.download = `xmas_${new Date().getTime()}.jpg`;
-
-      }, 1000);
+      google.script.run
+        .withSuccessHandler(res => {
+          document.getElementById('loading').classList.add('hidden');
+          if(res.success) {
+            document.getElementById('qrcode-container').classList.remove('hidden');
+            document.getElementById('qrcode').innerHTML = "";
+            new QRCode(document.getElementById('qrcode'), {
+              text: res.url, width: 200, height: 200, colorDark: "#165b33", colorLight: "#ffffff"
+            });
+          } else { alert("上傳失敗: " + res.error); }
+        })
+        .withFailureHandler(err => {
+          document.getElementById('loading').classList.add('hidden');
+          alert("錯誤: " + err.message);
+        })
+        .uploadImageToDrive(jpgBase64);
     }
 
-    // --- 照片牆 (改為讀取 LocalStorage) ---
+    // --- 照片牆 (改為網格展示) ---
     function openGallery() {
       const g = document.getElementById('gallery-view');
       const grid = document.getElementById('gallery-grid');
       g.classList.remove('hidden');
       grid.innerHTML = "";
-      
-      const photos = LocalGallery.getAll();
-      
-      if(photos.length === 0) {
-        grid.innerHTML = "<div style='color:white; grid-column:span 2; text-align:center; padding-top:20px;'>還沒有照片喔！<br>存在你的瀏覽器中</div>";
-        return;
-      }
+      document.getElementById('gallery-loading').style.display = 'block';
 
-      photos.forEach(url => {
-        const div = document.createElement('div');
-        div.className = 'gallery-item';
-        div.style.setProperty('--rot', (Math.random()*6-3)+'deg');
-        const img = document.createElement('img');
-        img.src = url;
-        div.appendChild(img);
-        grid.appendChild(div);
-      });
+      google.script.run.withSuccessHandler(photos => {
+        document.getElementById('gallery-loading').style.display = 'none';
+        if(!photos || photos.length === 0) {
+          grid.innerHTML = "<div style='color:white; grid-column:span 2; text-align:center;'>還沒有照片喔！</div>";
+          return;
+        }
+        photos.forEach(url => {
+          const div = document.createElement('div');
+          div.className = 'gallery-item';
+          div.style.setProperty('--rot', (Math.random()*6-3)+'deg');
+          const img = document.createElement('img');
+          img.src = url;
+          div.appendChild(img);
+          grid.appendChild(div);
+        });
+      }).getRecentPhotos();
     }
 
     function closeGallery() {
